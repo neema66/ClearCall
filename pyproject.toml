@@ -1,0 +1,45 @@
+[project]
+name = "senhance"
+version = "0.1.0"
+description = "Real-time speech enhancement system: DSP + Deep Learning noise suppression with virtual microphone output."
+requires-python = ">=3.10"
+readme = "README.md"
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "sounddevice>=0.4.6",
+    "PyYAML>=6.0",
+    "pesq>=0.0.4",
+    "pystoi>=0.3.3",
+    "soundfile>=0.12.1",
+]
+
+[project.optional-dependencies]
+dl = [
+    "torch>=2.0",
+    # "deepfilternet" is installed separately per docs/setup.md instructions,
+    # since it ships its own PyTorch/onnxruntime version constraints.
+]
+dev = [
+    "pytest>=7.4",
+    "black>=24.0",
+    "ruff>=0.4",
+    "mypy>=1.8",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

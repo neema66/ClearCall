@@ -1,0 +1,17 @@
+# Core dependencies for Windows-only Safe Track target.
+# Install with: pip install -r requirements.txt
+numpy>=1.24
+scipy>=1.10
+sounddevice>=0.4.6
+PyYAML>=6.0
+pesq>=0.0.4
+pystoi>=0.3.3
+soundfile>=0.12.1
+
+# Deep learning pipeline (offline-only for the demo, see docs/setup.md)
+torch>=2.0
+
+# Dev / testing tools
+pytest>=7.4
+black>=24.0
+ruff>=0.4

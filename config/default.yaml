@@ -1,0 +1,57 @@
+# Default configuration for the speech enhancement system.
+# Windows-only Safe Track scope (see docs/architecture.md for rationale).
+#
+# Override any of these by copying this file to config/local.yaml and
+# passing --config config/local.yaml to the entry point scripts.
+
+audio:
+  sample_rate: 48000          # Canonical internal sample rate (Hz). Resample
+                               # at input/output boundaries if a device or
+                               # model needs a different rate.
+  channels: 1                  # Mono processing only for this project.
+  block_size: 480               # Samples per audio callback block (~10ms at 48kHz).
+  input_device: null            # null = use system default input device.
+                                 # Set to a device name/index to override
+                                 # (see `python -m sounddevice` to list devices).
+  output_device: null            # Set to the VB-Cable / virtual mic device name.
+
+dsp:
+  frame_size_ms: 20               # STFT analysis frame length in ms.
+  overlap_ratio: 0.5              # 50% overlap between STFT frames.
+  window: "hann"                  # Window function used for STFT/ISTFT.
+  noise_estimation_frames: 10     # Number of initial frames assumed to be
+                                   # noise-only, used to seed the noise estimate.
+  spectral_subtraction:
+    oversubtraction_factor: 2.0   # Alpha: how aggressively to subtract noise.
+    spectral_floor: 0.05          # Beta: minimum gain floor to avoid musical noise.
+  wiener_filter:
+    smoothing_factor: 0.98        # Decision-directed a priori SNR smoothing (Ephraim & Malah).
+
+deep_learning:
+  enabled: false                  # Safe Track default: DL pipeline is offline-only.
+                                   # Flip to true only once real-time inference has
+                                   # been verified to meet the latency budget.
+  model_name: "DeepFilterNet3"
+  device: "cpu"                   # "cpu" for the demo; "cuda" if a GPU is available.
+
+evaluation:
+  dataset_dir: "data"
+  clean_subdir: "clean"
+  noisy_subdir: "noisy"
+  sample_rate_for_metrics: 16000   # PESQ wideband / STOI expect 16kHz; we
+                                    # resample down from the internal 48kHz here.
+  pesq_mode: "wb"                  # "wb" (wideband) or "nb" (narrowband)
+
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  log_to_console: true
+  log_to_file: true
+
+latency_budget_ms:
+  capture: 5
+  buffering: 5
+  dsp_processing: 10
+  dl_processing: 20
+  output: 5
+  total_target: 40
