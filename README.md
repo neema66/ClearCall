@@ -1,6 +1,6 @@
 # Real-Time Speech Enhancement System
 
-ENSC 429 (Digital Signal Processing) capstone project -- Simon Fraser
+ENSC 429 (Digital Signal Processing) project -- Simon Fraser
 University, Summer 2026.
 
 ## Project Overview
