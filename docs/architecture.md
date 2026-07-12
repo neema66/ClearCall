@@ -127,11 +127,13 @@ fallback, not silent scope creep in either direction.
 
 ## Known Limitations (Current)
 
-- The noise estimator (`senhance.pipeline.dsp.noise_estimator`) assumes
-  the first `noise_estimation_frames` frames are noise-only. Without a
-  VAD gate, if speech starts before calibration ends, the estimator will
-  partially learn to suppress the speech itself. This is a known,
-  documented limitation -- see the TODO in that file.
+- The noise estimator (`senhance.pipeline.dsp.noise_estimator`) now uses
+  a minimum-statistics tracker (Martin, 2001) over a sliding window
+  (`dsp.noise_estimation_window_sec`) instead of a fixed silent
+  calibration period, so it no longer requires a silence lead-in.
+  Without a VAD gate it can still be slow to track a noise floor that
+  rises sharply mid-stream (bounded by the window length), which is an
+  acceptable simplification for this project's scope.
 - `DSPPipeline.process()` assumes `block_size == frame_size` in config
   (i.e., no internal accumulation across multiple audio callback blocks
   into one STFT frame yet). See the TODO in `processor.py`.

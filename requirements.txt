@@ -11,6 +11,9 @@ soundfile>=0.12.1
 # Deep learning pipeline (offline-only for the demo, see docs/setup.md)
 torch>=2.0
 
+# Visualization (before/after waveform plots, see scripts/plot_waveform.py)
+matplotlib>=3.7
+
 # Dev / testing tools
 pytest>=7.4
 black>=24.0

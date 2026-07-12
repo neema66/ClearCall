@@ -21,6 +21,9 @@ dl = [
     # "deepfilternet" is installed separately per docs/setup.md instructions,
     # since it ships its own PyTorch/onnxruntime version constraints.
 ]
+viz = [
+    "matplotlib>=3.7",
+]
 dev = [
     "pytest>=7.4",
     "black>=24.0",

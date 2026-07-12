@@ -1,0 +1,33 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode / caches
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+
+# Generated at runtime -- regenerate from tracked source + code, not shared via git
+outputs/
+logs/
+
+# Personal config overrides (see docs/setup.md -- copy config/default.yaml here)
+config/local.yaml
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# NOTE: data/clean/ and data/noisy/ are intentionally NOT ignored -- the
+# team's VoiceBank+DEMAND subset is small (~17MB) and is committed so
+# everyone gets it via `git pull` with no extra setup. Revisit this if
+# the dataset grows much larger (e.g. the full VoiceBank+DEMAND test set).

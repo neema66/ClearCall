@@ -1,7 +1,11 @@
 # Data Directory
 
-This folder holds evaluation audio data. It is gitignored (see `.gitignore`)
-because audio datasets are large and shouldn't be committed to the repo.
+This folder holds evaluation audio data. Our current VoiceBank+DEMAND
+subset (19 matched clean/noisy pairs, ~17MB) is small enough that it's
+committed directly to the repo, so `git pull` is all teammates need to
+get it -- no separate download step. If the dataset grows substantially
+(e.g. the full VoiceBank+DEMAND test set, ~150MB+), reconsider this and
+add `data/` to `.gitignore` instead.
 
 ## Structure
 

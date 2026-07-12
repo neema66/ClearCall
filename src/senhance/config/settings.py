@@ -32,14 +32,26 @@ class AudioSettings:
 
 
 @dataclasses.dataclass
+class NoiseEstimatorSettings:
+    window_sec: float = 1.2
+    # Empirically tuned against the team's VoiceBank+DEMAND subset (see
+    # docs/evaluation_plan.md) -- lower than the theoretically "unbiased"
+    # value because the noise estimate also feeds spectral subtraction and
+    # the Wiener filter, both of which apply their own suppression on top;
+    # inflating the noise estimate further compounds with them. Retune if
+    # either downstream stage's aggressiveness changes materially.
+    bias_correction: float = 0.5
+
+
+@dataclasses.dataclass
 class SpectralSubtractionSettings:
-    oversubtraction_factor: float = 2.0
-    spectral_floor: float = 0.05
+    oversubtraction_factor: float = 0.3
+    spectral_floor: float = 0.2
 
 
 @dataclasses.dataclass
 class WienerFilterSettings:
-    smoothing_factor: float = 0.98
+    smoothing_factor: float = 0.7
 
 
 @dataclasses.dataclass
@@ -47,7 +59,9 @@ class DSPSettings:
     frame_size_ms: int = 20
     overlap_ratio: float = 0.5
     window: str = "hann"
-    noise_estimation_frames: int = 10
+    noise_estimator: NoiseEstimatorSettings = dataclasses.field(
+        default_factory=NoiseEstimatorSettings
+    )
     spectral_subtraction: SpectralSubtractionSettings = dataclasses.field(
         default_factory=SpectralSubtractionSettings
     )
