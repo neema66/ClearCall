@@ -2,6 +2,9 @@
 .venv/
 venv/
 env/
+.venv-*/
+.conda-dl/
+.env
 
 # Python bytecode / caches
 __pycache__/
@@ -31,3 +34,7 @@ Thumbs.db
 # team's VoiceBank+DEMAND subset is small (~17MB) and is committed so
 # everyone gets it via `git pull` with no extra setup. Revisit this if
 # the dataset grows much larger (e.g. the full VoiceBank+DEMAND test set).
+
+# JC
+.coverage
+htmlcov/

@@ -34,6 +34,17 @@ def main() -> None:
 
     configure_logging()
     settings = load_settings(args.config)
+
+    # ==========Added
+    if args.pipeline == "dl":
+        from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
+
+        pipeline = DeepFilterNetPipeline(settings)
+        pipeline.process_file(args.input, args.output)
+        logger.info("Wrote enhanced output to %s", args.output)
+        return
+    # ------------------
+
     pipeline = _build_pipeline(args.pipeline, settings)
 
     noisy, sr = sf.read(args.input, dtype="float32")
