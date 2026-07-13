@@ -69,15 +69,24 @@ class DeepFilterNetPipeline(EnhancementStrategy):
         See docs/setup.md for installation instructions and where
         checkpoints are cached.
         """
+        # ============== added===========
+        try:
+            from df.enhance import init_df
+        except ImportError as exc:
+            raise ImportError(
+                "DeepFilterNet is not installed. Activate the DL env and run: "
+                "python -m pip install deepfilternet"
+            ) from exc
+
         logger.info(
-            "TODO: load DeepFilterNet model '%s' on device '%s'",
+            "Loading DeepFilterNet model '%s' on device '%s'",
             self.settings.deep_learning.model_name,
             self.settings.deep_learning.device,
         )
-        raise NotImplementedError(
-            "DeepFilterNet model loading not yet implemented. "
-            "See TODO in DeepFilterNetPipeline._load_model."
-        )
+        self._model, self._df_state, _ = init_df()
+        # -----------------------------
+
+       
 
     def process(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -109,10 +118,23 @@ class DeepFilterNetPipeline(EnhancementStrategy):
             enhanced = enhance(self._model, self._df_state, audio)
             save_audio(output_path, enhanced, self._df_state.sr())
         """
-        raise NotImplementedError(
-            "TODO: implement whole-file DeepFilterNet processing. "
-            f"input_path={input_path}, output_path={output_path}"
-        )
+        # ============== added===========
+        if self._model is None or self._df_state is None:
+            self._load_model()
+
+        from df.enhance import enhance, load_audio, save_audio
+
+        input_path = Path(input_path)
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        audio, _ = load_audio(input_path, sr=self._df_state.sr())
+        enhanced = enhance(self._model, self._df_state, audio)
+        save_audio(output_path, enhanced, self._df_state.sr())
+
+        logger.info("Wrote DeepFilterNet output to %s", output_path)
+        # ---------------------------------
+        
 
     def reset(self) -> None:
         """DeepFilterNet's internal state (if any) reset hook."""
