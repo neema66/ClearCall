@@ -117,7 +117,7 @@ def evaluate_dataset(pipeline_name: str, config_path: str = "config/default.yaml
         else:
             enhanced = enhance_offline(pipeline, noisy, settings)
         # ---------------------
-        
+        #         
         # Align lengths (framing may produce a slightly shorter output).
         n = min(len(clean), len(noisy), len(enhanced))
         clean, noisy, enhanced = clean[:n], noisy[:n], enhanced[:n]

@@ -86,15 +86,7 @@ class DeepFilterNetPipeline(EnhancementStrategy):
         self._model, self._df_state, _ = init_df()
         # -----------------------------
 
-        # logger.info(
-        #     "TODO: load DeepFilterNet model '%s' on device '%s'",
-        #     self.settings.deep_learning.model_name,
-        #     self.settings.deep_learning.device,
-        # )
-        # raise NotImplementedError(
-        #     "DeepFilterNet model loading not yet implemented. "
-        #     "See TODO in DeepFilterNetPipeline._load_model."
-        # )
+       
 
     def process(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -142,10 +134,7 @@ class DeepFilterNetPipeline(EnhancementStrategy):
 
         logger.info("Wrote DeepFilterNet output to %s", output_path)
         # ---------------------------------
-        # raise NotImplementedError(
-        #     "TODO: implement whole-file DeepFilterNet processing. "
-        #     f"input_path={input_path}, output_path={output_path}"
-        # )
+        
 
     def reset(self) -> None:
         """DeepFilterNet's internal state (if any) reset hook."""
