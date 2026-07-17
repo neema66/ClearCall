@@ -70,10 +70,11 @@ rest of the project if installed by default. Install it separately:
 pip install deepfilternet
 ```
 
-TODO (Member 3 / DL lead): confirm the exact package name and version
-once you've worked through the DeepFilterNet repo's own install
-instructions (https://github.com/Rikorose/DeepFilterNet), and update
-this section with the exact command and any gotchas you hit.
+Milestone 1 was verified with DeepFilterNet 0.5.6 and PyTorch 2.2.2+cpu.
+The wrapper imports both packages lazily, so the core unit suite can use an
+injected fake enhancer without installing either package or downloading a
+checkpoint. `deep_learning.model_name` selects the pretrained model or model
+directory, and `deep_learning.device` is applied and verified during loading.
 
 ## 6. Verify the Install
 

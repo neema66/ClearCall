@@ -1,0 +1,27 @@
+# Hybrid Method 3 Version 1 experiment configuration.
+#
+# Method 3 always combines one selected DSP-enhanced output with one DL output.
+# The math core imports neither implementation; the evaluator/orchestrator
+# selects an adapter and injects both arrays. Switching the selected backend
+# does not change the blend equation, but requires a new evaluation run.
+
+method_3:
+  mode: "fixed_waveform"
+  dsp:
+    selected_backend: "improved_dsp"
+    backends:
+      # Both complete-array adapters compensate their own internal delay.
+      # These reviewed residual profiles are DL event index minus DSP event
+      # index. They are rechecked during the corrected evaluation.
+      improved_dsp:
+        dl_minus_dsp_delay_samples: 0
+      legacy_dsp:
+        dl_minus_dsp_delay_samples: 0
+  # Experimental development sweep. No alpha is declared optimal.
+  # alpha=0 is all selected DSP; alpha=1 is all DeepFilterNet.
+  alpha_sweep: [0.0, 0.25, 0.5, 0.7, 1.0]
+  clipping_threshold: 1.0
+  listening_set:
+    # Development/tuning clips selected to stress artifact audibility.
+    file_names: ["p232_005.wav", "p232_010.wav", "p232_019.wav"]
+    alpha_values: [0.0, 0.25, 0.5, 0.7, 1.0]

@@ -13,7 +13,7 @@ Usage:
 """
 
 from __future__ import annotations
-import tempfile
+
 import argparse
 from pathlib import Path
 
@@ -38,8 +38,6 @@ def _build_pipeline(pipeline_name: str, settings: AppSettings) -> EnhancementStr
     if pipeline_name == "dsp":
         return DSPPipeline(settings)
     elif pipeline_name == "dl":
-        # TODO (Member 3): wire up DeepFilterNetPipeline once
-        # implemented -- see senhance.pipeline.dl.deepfilternet_wrapper.
         from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
 
         return DeepFilterNetPipeline(settings)
@@ -47,14 +45,17 @@ def _build_pipeline(pipeline_name: str, settings: AppSettings) -> EnhancementStr
         raise ValueError(f"Unknown pipeline: {pipeline_name}")
 
 
-def enhance_offline(pipeline: EnhancementStrategy, noisy: np.ndarray, settings: AppSettings) -> np.ndarray:
+def enhance_offline(
+    pipeline: EnhancementStrategy,
+    noisy: np.ndarray,
+    settings: AppSettings,
+) -> np.ndarray:
     """
     Run a whole (offline) noisy clip through a frame-based
     EnhancementStrategy by chunking it into frames and reassembling.
 
-    TODO: for DeepFilterNetPipeline, prefer calling `process_file`
-    directly instead of this generic frame-chunking loop, since
-    DeepFilterNet has its own internal framing conventions.
+    DeepFilterNet is not passed to this helper: its offline evaluator uses
+    ``enhance_array`` so the model owns its framing and delay compensation.
     """
     frame_size = settings.frame_size_samples
     hop_size = settings.hop_size_samples
@@ -99,25 +100,19 @@ def evaluate_dataset(pipeline_name: str, config_path: str = "config/default.yaml
         noisy, sr_noisy = sf.read(noisy_path, dtype="float32")
         assert sr_clean == sr_noisy, "Clean/noisy sample rates must match."
 
-        # =========modified
         if pipeline_name == "dl":
             from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
 
-            with tempfile.TemporaryDirectory() as tmpdir:
-                noisy_tmp = Path(tmpdir) / "noisy.wav"
-                enhanced_tmp = Path(tmpdir) / "enhanced.wav"
-
-                sf.write(noisy_tmp, noisy, sr_noisy)
-
-                assert isinstance(pipeline, DeepFilterNetPipeline)
-                pipeline.process_file(noisy_tmp, enhanced_tmp)
-
-                enhanced, sr_enhanced = sf.read(enhanced_tmp, dtype="float32")
-                assert sr_enhanced == sr_noisy
+            assert isinstance(pipeline, DeepFilterNetPipeline)
+            enhanced = pipeline.enhance_array(noisy, sr_noisy)
+            if enhanced.shape != noisy.shape:
+                raise AssertionError(
+                    "DeepFilterNet array boundary changed the sample count: "
+                    f"input={noisy.size}, output={enhanced.size}"
+                )
         else:
             enhanced = enhance_offline(pipeline, noisy, settings)
-        # ---------------------
-        #         
+
         # Align lengths (framing may produce a slightly shorter output).
         n = min(len(clean), len(noisy), len(enhanced))
         clean, noisy, enhanced = clean[:n], noisy[:n], enhanced[:n]

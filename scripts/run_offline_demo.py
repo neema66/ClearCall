@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """
-Offline demo: run the DSP pipeline (or DL pipeline, once implemented) on
+Offline demo: run the DSP or whole-array DL pipeline on
 a single input WAV file and save the enhanced output, without needing a
 live microphone or virtual audio device.
 
 Usage:
-    python scripts/run_offline_demo.py --input data/noisy/sample1.wav --output outputs/sample1_enhanced.wav
-    python scripts/run_offline_demo.py --input data/noisy/sample1.wav --output outputs/sample1_dl.wav --pipeline dl
+    python scripts/run_offline_demo.py --input INPUT.wav --output DSP_OUTPUT.wav
+    python scripts/run_offline_demo.py --input INPUT.wav --output DL_OUTPUT.wav --pipeline dl
 """
 
 import argparse
@@ -35,7 +35,6 @@ def main() -> None:
     configure_logging()
     settings = load_settings(args.config)
 
-    # ==========Added
     if args.pipeline == "dl":
         from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
 
@@ -43,12 +42,17 @@ def main() -> None:
         pipeline.process_file(args.input, args.output)
         logger.info("Wrote enhanced output to %s", args.output)
         return
-    # ------------------
 
     pipeline = _build_pipeline(args.pipeline, settings)
 
     noisy, sr = sf.read(args.input, dtype="float32")
-    logger.info("Processing %s (%d samples, %d Hz) with %s pipeline", args.input, len(noisy), sr, args.pipeline)
+    logger.info(
+        "Processing %s (%d samples, %d Hz) with %s pipeline",
+        args.input,
+        len(noisy),
+        sr,
+        args.pipeline,
+    )
 
     enhanced = enhance_offline(pipeline, noisy, settings)
 
