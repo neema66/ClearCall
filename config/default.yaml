@@ -19,13 +19,27 @@ dsp:
   frame_size_ms: 20               # STFT analysis frame length in ms.
   overlap_ratio: 0.5              # 50% overlap between STFT frames.
   window: "hann"                  # Window function used for STFT/ISTFT.
-  noise_estimation_frames: 10     # Number of initial frames assumed to be
-                                   # noise-only, used to seed the noise estimate.
+  noise_estimator:
+    window_sec: 1.2                # Sliding window over which the minimum-
+                                    # statistics tracker looks for the noise
+                                    # floor per frequency bin.
+    bias_correction: 0.5           # Multiplier on the tracked minimum power.
+                                    # Empirically tuned (see docs/evaluation_plan.md)
+                                    # against the VoiceBank+DEMAND subset -- lower
+                                    # than the theoretical "unbiased" value because
+                                    # spectral subtraction and the Wiener filter
+                                    # below both apply their own suppression on top
+                                    # of this estimate.
+  # spectral_subtraction and wiener_filter below are combined via independent
+  # gain estimation in DSPPipeline.process() (each computed from the true noisy
+  # spectrum, then multiplied together and applied once) -- NOT chained through
+  # each other, which was found to compound suppression and hurt quality. Both
+  # sets of values here were empirically tuned together as a result.
   spectral_subtraction:
-    oversubtraction_factor: 2.0   # Alpha: how aggressively to subtract noise.
-    spectral_floor: 0.05          # Beta: minimum gain floor to avoid musical noise.
+    oversubtraction_factor: 0.3   # Alpha: how aggressively to subtract noise.
+    spectral_floor: 0.2           # Beta: minimum gain floor to avoid musical noise.
   wiener_filter:
-    smoothing_factor: 0.98        # Decision-directed a priori SNR smoothing (Ephraim & Malah).
+    smoothing_factor: 0.7         # Decision-directed a priori SNR smoothing (Ephraim & Malah).
 
 deep_learning:
   enabled: false                  # Safe Track default: DL pipeline is offline-only.

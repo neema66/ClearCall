@@ -27,13 +27,25 @@ class DSPPipeline(EnhancementStrategy):
     """
     Classical DSP speech enhancement:
         noisy frame -> STFT -> noise estimate update
-                    -> spectral subtraction -> Wiener filter -> ISTFT
+                    -> spectral subtraction gain, Wiener gain (independent)
+                    -> combined gain applied once -> ISTFT
                     -> enhanced frame (overlap-added)
 
-    Both spectral subtraction and the Wiener filter are applied in
-    sequence (subtraction first, as a coarse pass, then Wiener filtering
-    for a smoother final gain) -- this ordering is a design choice worth
-    revisiting/tuning as a team based on listening tests.
+    Spectral subtraction and the Wiener filter each estimate their own
+    suppression gain from the *same* true noisy spectrum and noise
+    estimate, and those two gains are then multiplied together and
+    applied once. This is deliberate: both stages derive their gain from
+    an SNR estimate against the noise floor, so feeding one stage's
+    output into the other as if it were "the noisy signal" would silently
+    compound two suppression decisions into one. An earlier version did
+    exactly that (subtraction's output fed into the Wiener filter) and
+    was measured to make quality *worse* than doing no processing at all
+    on the team's VoiceBank+DEMAND subset (PESQ 1.28 vs. a 2.28 do-nothing
+    baseline). The default `oversubtraction_factor`, `spectral_floor`,
+    `wiener_filter.smoothing_factor`, and `noise_estimator.bias_correction`
+    values in config/default.yaml were all retuned together against that
+    same subset after this fix -- see docs/evaluation_plan.md for the
+    before/after numbers and search methodology.
     """
 
     def __init__(self, settings: AppSettings):
@@ -45,9 +57,14 @@ class DSPPipeline(EnhancementStrategy):
         self._stft = StreamingSTFT(
             frame_size=frame_size, hop_size=hop_size, window=settings.dsp.window
         )
+        frame_period_sec = hop_size / settings.audio.sample_rate
+        window_frames = max(
+            1, round(settings.dsp.noise_estimator.window_sec / frame_period_sec)
+        )
         self._noise_estimator = NoiseEstimator(
             num_freq_bins=num_freq_bins,
-            calibration_frames=settings.dsp.noise_estimation_frames,
+            window_frames=window_frames,
+            bias_correction=settings.dsp.noise_estimator.bias_correction,
         )
         self._wiener = WienerFilter(
             num_freq_bins=num_freq_bins,
@@ -86,16 +103,23 @@ class DSPPipeline(EnhancementStrategy):
 
         noise_estimate = self._noise_estimator.update(magnitude)
 
-        spectrum = spectral_subtract(
+        # Each stage computes its gain from the TRUE noisy spectrum (not
+        # from the other stage's output -- see class docstring for why),
+        # then the two gains are combined multiplicatively and applied
+        # once to the original spectrum.
+        subtracted_spectrum = spectral_subtract(
             spectrum,
             noise_estimate,
             oversubtraction_factor=cfg.spectral_subtraction.oversubtraction_factor,
             spectral_floor=cfg.spectral_subtraction.spectral_floor,
         )
+        wiener_spectrum = self._wiener.apply(spectrum, noise_estimate)
 
-        spectrum = self._wiener.apply(spectrum, noise_estimate)
+        subtraction_gain = np.abs(subtracted_spectrum) / (magnitude + 1e-12)
+        wiener_gain = np.abs(wiener_spectrum) / (magnitude + 1e-12)
+        enhanced_spectrum = (subtraction_gain * wiener_gain) * spectrum
 
-        return self._stft.inverse(spectrum)
+        return self._stft.inverse(enhanced_spectrum)
 
     def reset(self) -> None:
         """Reset all stateful sub-components (call between streams)."""
