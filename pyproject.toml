@@ -13,6 +13,7 @@ dependencies = [
     "pesq>=0.0.4",
     "pystoi>=0.3.3",
     "soundfile>=0.12.1",
+    "PySide6>=6.8",
 ]
 
 [project.optional-dependencies]

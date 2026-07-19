@@ -1,0 +1,10 @@
+/.venv
+/src/senhance/__pycache__
+/src/senhance/audio/__pycache__
+/src/senhance/config/__pycache__
+/src/senhance/logging_setup/__pycache__
+/src/senhance/pipeline/__pycache__
+/src/senhance/experiments/__pycache__
+/src/senhance/pipeline/dsp/__pycache__
+/src/senhance.egg-info
+/logs
