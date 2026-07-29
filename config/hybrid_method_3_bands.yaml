@@ -1,0 +1,40 @@
+# Hybrid Method 3 Version 2 fixed-frequency-band experiment configuration.
+#
+# This file owns band-fusion policy only. The selected DSP backend comes from
+# hybrid_method_3.yaml (improved_dsp by default). Each DL weight's complement
+# is the selected DSP contribution: output = w*DL + (1-w)*DSP.
+
+method_3_bands:
+  mode: "fixed_frequency_bands"
+
+  # Edges lie on the 50 Hz rFFT grid for 48 kHz / 960-sample frames.
+  # Intervals are [lower, upper); the last band includes 24 kHz Nyquist.
+  band_edges_hz: [0.0, 300.0, 1000.0, 3000.0, 8000.0, 24000.0]
+
+  # Fixed DeepFilterNet contribution per band; the remaining contribution is
+  # selected DSP. These are starting candidates, not selected optima.
+  dl_weights: [0.25, 0.55, 0.85, 0.75, 0.35]
+
+  variants:
+    - id: "complex_step"
+      blend_domain: "complex"
+      phase_source: "none"
+      frequency_smoothing_bins: 1
+    - id: "complex_smoothed"
+      blend_domain: "complex"
+      phase_source: "none"
+      frequency_smoothing_bins: 9
+    - id: "magnitude_dsp_phase"
+      blend_domain: "magnitude"
+      phase_source: "dsp"
+      frequency_smoothing_bins: 9
+    - id: "magnitude_dl_phase"
+      blend_domain: "magnitude"
+      phase_source: "dl"
+      frequency_smoothing_bins: 9
+
+  evaluation:
+    waveform_alpha: 0.7
+    clipping_threshold: 1.0
+    listening_set:
+      file_names: ["p232_005.wav", "p232_010.wav", "p232_019.wav"]

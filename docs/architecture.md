@@ -52,17 +52,42 @@ Microphone --> AudioStreamManager (capture callback)
                  Zoom / Teams / etc.
 ```
 
-Separately, offline evaluation runs entirely outside this live loop:
+Separately, offline evaluation runs entirely outside this live loop. The DSP
+uses its framed strategy while DeepFilterNet uses its validated whole-array
+boundary:
 
 ```
-data/noisy/*.wav --> EnhancementStrategy.process() (DSP or DL)
+data/noisy/*.wav --> DSP process() or DL enhance_array()
+                            |
+                            +---- data/clean/*.wav (reference)
                             |
                             v
-                data/clean/*.wav (reference) --> metrics.py
-                            |
-                            v
-                  PESQ / STOI / SNR results
+                    PESQ / STOI / SNR results
 ```
+
+Independent offline Hybrid Method 1 adds a second whole-array path. The outer
+orchestrator runs DeepFilterNet once and caches its exact-length result;
+Method 1 then receives only the noisy and cached-DL arrays:
+
+```text
+noisy -> DeepFilterNet once -> cached DL array
+  |                              |
+  +------------------------------+
+                 |
+                 v
+       Method1SafetyLayer
+         -> fixed alignment
+         -> matching STFTs
+         -> guarded DL keep map
+         -> bounded DSP safety controls
+         -> noisy- or DL-phase reconstruction
+         -> one WOLA
+         -> exact-length float32 output
+```
+
+The clean array is never supplied to enhancement. It is used afterward for
+metrics and exported as the listening reference. Original DSP and
+`improved_dsp` are Method 1 comparators, not internal Method 1 branches.
 
 ## Module Responsibilities
 
@@ -72,8 +97,11 @@ data/noisy/*.wav --> EnhancementStrategy.process() (DSP or DL)
 | `senhance.audio.buffer` | Thread-safe queue connecting the callback thread to the processing loop |
 | `senhance.pipeline.base` | `EnhancementStrategy` abstract interface -- both DSP and DL pipelines implement this |
 | `senhance.pipeline.dsp.*` | STFT, noise estimation, spectral subtraction, Wiener filter, and the `DSPPipeline` that wires them together |
-| `senhance.pipeline.dl.deepfilternet_wrapper` | DeepFilterNet wrapper (offline-only stub, see TODOs in the file) |
-| `senhance.config.settings` | Loads and validates `config/*.yaml` into typed dataclasses -- the single source of truth for all tunable parameters |
+| `senhance.pipeline.improved_dsp.*` | Independent MCRA-based improved DSP implementation and its offline/live adapters |
+| `senhance.pipeline.dl.deepfilternet_wrapper` | Strict, injectable DeepFilterNet whole-array boundary and observed model metadata; offline only |
+| `senhance.pipeline.hybrid.method3.*` | Independent Method 3 waveform and frequency-band fusion of injected complete-DSP and DL arrays |
+| `senhance.pipeline.hybrid.method1.*` | Independent Method 1 alignment, paired STFT/WOLA, guarded DL keep map, DSP safety controls, phase selection, and diagnostics |
+| `senhance.config.settings` | Loads and validates general application settings; Method 3 and Method 1 also own separate strict typed config loaders for their algorithm-specific YAML files |
 | `senhance.logging_setup.logger` | Application-wide logging setup |
 | `senhance.evaluation.metrics` | PESQ/STOI/SNR wrappers |
 | `senhance.evaluation.evaluate` | Batch evaluation script comparing pipelines against the dataset |
@@ -137,12 +165,77 @@ fallback, not silent scope creep in either direction.
 - `DSPPipeline.process()` assumes `block_size == frame_size` in config
   (i.e., no internal accumulation across multiple audio callback blocks
   into one STFT frame yet). See the TODO in `processor.py`.
-- `DeepFilterNetPipeline` is currently a stub -- see TODOs in
-  `deepfilternet_wrapper.py` for exactly what needs implementing.
+- `DeepFilterNetPipeline.enhance_array()` is complete for sequential offline
+  inference, but its `process()` method intentionally does not claim
+  frame-level streaming support. DeepFilterNet 0.5.x also uses process-global
+  model/device configuration, so this project supports one serialized real
+  model instance per process.
+- Offline Method 1 and its automated development evaluation are complete, but
+  there is no selected perceptual winner yet. Human listening and a fresh
+  multi-speaker holdout remain pending. Its current full safety tuple causes a
+  substantial objective-score regression and must not be presented as an
+  optimized setting.
+- Method 1 is not integrated into the live audio loop. Its current upstream
+  DeepFilterNet boundary is whole-array only, so an offline real-time factor
+  below one is not evidence of live-call latency or callback safety.
+
+## Independent Method Boundaries
+
+The maintained method IDs are `original_dsp`, `improved_dsp`,
+`deepfilternet3`, `hybrid_method_1`, and `hybrid_method_3`. Original DSP,
+improved DSP, and DeepFilterNet3 are standalone methods: they do not import a
+hybrid or one another. Method 1 and Method 3 are sibling packages under the
+hybrid namespace and do not import each other. See
+[`project_structure.md`](project_structure.md) for the canonical ownership,
+input/output, configuration, and evidence map.
+
+Method 3 has two mandatory upstream branches. The noisy array is enhanced once
+by the selected complete DSP (`ImprovedDSPPipeline` today) and once by
+DeepFilterNet. A replaceable orchestration adapter injects both exact-length
+arrays into the Method 3 core:
+
+```text
+noisy -> selected DSP --+
+                        +-> align -> DSP/DL waveform or band blend
+noisy -> DeepFilterNet -+
+```
+
+The blend core imports neither concrete enhancer. Switching to the original
+`DSPPipeline` changes the injected DSP signal but not the blend equation; the
+DSP-to-DL delay, tuning, runtime, metrics, and listening evidence must be
+regenerated.
+
+Method 1 remains independent from Method 3. It consumes noisy and cached
+DeepFilterNet arrays and applies a hybrid-owned DSP safety controller to the
+inferred keep map:
+
+```text
+Method1SafetyLayer(noisy, cached DL)
+  -> Method-1-owned fixed alignment
+  -> Method-1-owned matching 960/480 Hann STFTs
+  -> guarded |DL|/|noisy| keep map
+  -> temporal smoothing
+  -> frequency smoothing
+  -> gain floor
+  -> per-hop rise/drop limits
+  -> noisy or DL phase reconstruction
+  -> one Method-1-owned WOLA
+  -> exact-length float32 output
+```
+
+Its alignment and paired-STFT/WOLA algorithms live in the separate
+`senhance.pipeline.hybrid.method1` package rather than being imported from
+Method 3. The Method 1 core imports neither concrete enhancer nor Method 3.
+Switching Method 3 from
+`improved_dsp` to the original DSP therefore does not change Method 1;
+changing the DeepFilterNet model or signal geometry still requires Method 1
+alignment, tuning, metrics, and listening to be repeated.
 
 ## Further Reading
 
 - `docs/setup.md` -- installation and environment setup
+- `docs/project_structure.md` -- canonical method names, ownership boundaries,
+  array contracts, and evidence layout
 - `docs/development_workflow.md` -- Git workflow, code review, testing
   expectations
 - `docs/evaluation_plan.md` -- how PESQ/STOI/SNR evaluation works and

@@ -31,10 +31,9 @@ def benchmark_pipeline(pipeline_name: str, iterations: int, config_path: str) ->
     if pipeline_name == "dsp":
         pipeline = DSPPipeline(settings)
     elif pipeline_name == "dl":
-        # TODO (Member 3): benchmark DeepFilterNetPipeline once its
-        # frame-level `process` method is implemented. For now this
-        # will raise NotImplementedError, which is expected until that
-        # work is done -- see senhance.pipeline.dl.deepfilternet_wrapper.
+        # This frame benchmark intentionally remains unsupported for the
+        # offline-only DeepFilterNet array boundary. A true streaming backend
+        # is required before a per-frame number would be meaningful.
         from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
 
         pipeline = DeepFilterNetPipeline(settings)

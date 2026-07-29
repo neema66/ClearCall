@@ -1,0 +1,83 @@
+# Independent offline Hybrid Method 1 configuration.
+#
+# Method 1 receives noisy and already-computed DeepFilterNet arrays. It does
+# not import or modify the original DSP, improved_dsp, DeepFilterNet, or
+# Method 3 implementations. The DSP contribution is this method's new bounded
+# keep-map safety controller.
+
+method_1:
+  mode: "dl_keep_map_safety_layer"
+  sample_rate: 48000
+
+  # Sign convention: DL event index minus noisy event index. DeepFilterNet's
+  # whole-array path currently compensates its internal delay.
+  alignment:
+    dl_minus_noisy_delay_samples: 0
+
+  stft:
+    frame_size: 960
+    hop_size: 480
+    window: "hann"
+
+  keep_map:
+    epsilon: 1.0e-8
+    low_energy_threshold: 1.0e-7
+
+  # Starting development settings. They are evaluated through cumulative
+  # ablations below and are not claimed as a perceptual optimum.
+  safety:
+    temporal_smoothing: 0.85
+    frequency_kernel_bins: 5
+    gain_floor: 0.10
+    max_gain_drop_per_frame: 0.15
+    max_gain_rise_per_frame: 0.10
+
+  variants:
+    - id: "raw_dl_phase"
+      temporal_smoothing: false
+      frequency_smoothing: false
+      gain_floor: false
+      rate_limits: false
+      reconstruction_phase: "dl"
+    - id: "raw_noisy_phase"
+      temporal_smoothing: false
+      frequency_smoothing: false
+      gain_floor: false
+      rate_limits: false
+      reconstruction_phase: "noisy"
+    - id: "temporal_dl_phase"
+      temporal_smoothing: true
+      frequency_smoothing: false
+      gain_floor: false
+      rate_limits: false
+      reconstruction_phase: "dl"
+    - id: "temporal_frequency_dl_phase"
+      temporal_smoothing: true
+      frequency_smoothing: true
+      gain_floor: false
+      rate_limits: false
+      reconstruction_phase: "dl"
+    - id: "temporal_frequency_floor_dl_phase"
+      temporal_smoothing: true
+      frequency_smoothing: true
+      gain_floor: true
+      rate_limits: false
+      reconstruction_phase: "dl"
+    - id: "full_dl_phase"
+      temporal_smoothing: true
+      frequency_smoothing: true
+      gain_floor: true
+      rate_limits: true
+      reconstruction_phase: "dl"
+    - id: "full_noisy_phase"
+      temporal_smoothing: true
+      frequency_smoothing: true
+      gain_floor: true
+      rate_limits: true
+      reconstruction_phase: "noisy"
+
+  evaluation:
+    clipping_threshold: 1.0
+    listening_set:
+      file_names: ["p232_005.wav", "p232_010.wav", "p232_019.wav"]
+      variant_ids: ["raw_dl_phase", "full_dl_phase", "full_noisy_phase"]

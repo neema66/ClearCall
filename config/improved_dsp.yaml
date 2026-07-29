@@ -1,0 +1,27 @@
+# Standalone configuration for senhance.pipeline.improved_dsp.
+# This file does not alter config/default.yaml or the legacy DSP pipeline.
+
+improved_dsp:
+  window: "hann"
+
+  mcra:
+    local_frequency_weights: [0.25, 0.50, 0.25]
+    power_smoothing: 0.8
+    speech_probability_smoothing: 0.2
+    noise_smoothing: 0.95
+    speech_ratio_threshold: 5.0
+    minimum_window_sec: 1.0
+    power_calibration: 0.5
+
+  spectral_subtraction:
+    oversubtraction_factor: 0.3
+    spectral_floor: 0.2
+
+  wiener:
+    smoothing_factor: 0.7
+    fusion_strength: 0.5
+
+  final_gain_smoothing:
+    enabled: true
+    frequency_weights: [0.25, 0.50, 0.25]
+    temporal_smoothing: 0.3

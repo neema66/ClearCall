@@ -1,0 +1,19 @@
+# Hybrid-owned alignment and paired-STFT geometry.
+#
+# The signal core is independent of each concrete DSP implementation. Outer
+# orchestration supplies the selected DSP-enhanced array and the DL-enhanced
+# array. Replacing the DSP requires rechecking alignment and metrics but does
+# not change the blend equation or STFT implementation.
+
+hybrid:
+  sample_rate: 48000
+  alignment:
+    # Sign convention: positive means candidate lags reference. For Method 3,
+    # candidate=DL and reference=selected DSP. Never advance either path.
+    # Both current offline branches compensate their internal 480-sample delay;
+    # the configured residual DSP-to-DL delay is zero and is revalidated.
+    delay_samples: 0
+  stft:
+    frame_size: 960
+    hop_size: 480
+    window: "hann"

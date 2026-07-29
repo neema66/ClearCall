@@ -37,10 +37,11 @@ Microphone --> Capture --> Buffer --> DSP Enhancement --> Virtual Mic --> Zoom/T
                                  a test dataset)
 ```
 
-Both pipelines implement a common `EnhancementStrategy` interface, so
-they can be swapped via configuration without touching the audio I/O or
-evaluation code. See `docs/architecture.md` for the full design,
-threading model, and module breakdown.
+The live DSP pipeline implements the frame-oriented `EnhancementStrategy`.
+Offline DeepFilterNet exposes a validated `enhance_array(audio, sample_rate)`
+boundary because its internal framing differs from the live DSP callback.
+See `docs/architecture.md` for the full design, threading model, and module
+breakdown.
 
 ## Installation
 
@@ -122,8 +123,8 @@ _(Update this table with actual names.)_
   gating yet) -- see `docs/architecture.md`, Known Limitations.
 - DSP pipeline currently assumes `block_size == frame_size` in config
   (no internal multi-block accumulation yet).
-- DeepFilterNet wrapper is a stub -- see TODOs in
-  `src/senhance/pipeline/dl/deepfilternet_wrapper.py`.
+- DeepFilterNet is whole-array/offline only; a stateful streaming interface is
+  still required before it can enter the live callback.
 - Windows-only for the live demo; macOS support is a post-demo stretch
   goal.
 - Evaluation is currently a manual weekly process, not automated CI.
@@ -143,6 +144,8 @@ _(Update this table with actual names.)_
 
 ## Project Documentation
 
+- `docs/project_structure.md` -- canonical method names, team ownership,
+  dependency boundaries, input/output contracts, and evidence layout
 - `docs/architecture.md` -- system design, scope rationale, threading
   model, known limitations
 - `docs/setup.md` -- detailed installation and troubleshooting

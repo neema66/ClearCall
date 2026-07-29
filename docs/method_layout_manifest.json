@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "created_on": "2026-07-16",
+  "purpose": "Canonical package-layout baseline after separating Hybrid Method 1 and Hybrid Method 3 into sibling subpackages.",
+  "algorithm_change": false,
+  "standalone_source_aggregate_sha256": "37978750be6bcd85a06e18d017eec23e0256daee63c7d1c7b826cd4e814f10be",
+  "standalone_source_file_count": 17,
+  "methods": {
+    "hybrid_method_1": {
+      "former_package": "senhance.pipeline.hybrid_method1",
+      "canonical_package": "senhance.pipeline.hybrid.method1",
+      "pre_migration_normalized_files": {
+        "__init__.py": "cdffbac450e77b45138ce537a31e6459257e7eb79cc81af0e03ddeae6d2316a7",
+        "alignment.py": "67377cdd87e7f9218c909cd9e80d125bbe1cedf55ac80b7b7bdaea51c1357626",
+        "config.py": "d658bfe40c54b257998293b1e0b409800b86dd328d57c3be581a85a939e0a6ca",
+        "keep_map.py": "b43201fdf97f531645999a78d81914ca800661bbc55605737d6c8eec960f65b1",
+        "paired_stft.py": "f04478f95533ed5d2eff1f4a1cbaf3e5121364297bbde3cada58d9767a25ccb2",
+        "processor.py": "e0339bdfe12471b9e44cae4ed733c6fe9a4748040f53fd43df81724edae212f3",
+        "safety_controller.py": "e26d007989caebd74bf0dc7dbab670d584d0d13601fbe7abcc0dcc0030069b72"
+      },
+      "canonical_files": {
+        "src/senhance/pipeline/hybrid/method1/__init__.py": "adc5688090d6265f954dc88867c51b547e95b12a9704788633b0e173d065b5b3",
+        "src/senhance/pipeline/hybrid/method1/alignment.py": "67377cdd87e7f9218c909cd9e80d125bbe1cedf55ac80b7b7bdaea51c1357626",
+        "src/senhance/pipeline/hybrid/method1/config.py": "d658bfe40c54b257998293b1e0b409800b86dd328d57c3be581a85a939e0a6ca",
+        "src/senhance/pipeline/hybrid/method1/keep_map.py": "5b12b572b4c07cd4bf7a3b546d5c492e8b8a46354262545d32f9c3e9b4d35366",
+        "src/senhance/pipeline/hybrid/method1/paired_stft.py": "a6c7232526eeb555fcef6f03fafbf990c07e7cdcadd018b7e25df0130fdb5949",
+        "src/senhance/pipeline/hybrid/method1/processor.py": "f380cdb8ceb037fdf339c9de589ca38968d16e27abd25d76f64113db37b01806",
+        "src/senhance/pipeline/hybrid/method1/safety_controller.py": "9b2533c3a260b9ef7d594695d5fdc5b13abdf125bd74a572de770743048cd283"
+      }
+    },
+    "hybrid_method_3": {
+      "former_package": "senhance.pipeline.hybrid",
+      "canonical_package": "senhance.pipeline.hybrid.method3",
+      "pre_migration_normalized_files": {
+        "alignment.py": "1e10d01b9665c0d5ebdaf6365326060c342d5dbd43930966f495b89794fec0ab",
+        "band_blender.py": "e50279ad1245a505aac723cfa1381220ad9198006f56d3aa86ec293606e3a56b",
+        "bands.py": "c5b2d824471338aa71b12ffe4a92da6974883ab7ec8511731b7940d89d306461",
+        "blender.py": "fdac3277fc1a7b3364093539893bad6a7206dc48e29756c81cbc278952855b02",
+        "config.py": "944e56ccec1e826c2a877181660859ead2f021efa4b2f90c7ac8f950e808ca17",
+        "method3_band_config.py": "7d78c36e6e41ab74f3fb2677b05f648021928ebb6b52e6d2af08943d07c2493f",
+        "method3_config.py": "a31a4394fd52f8704fba999bc03cfda2d9d3ad12f70e4dccdd3dd304772c301d",
+        "paired_stft.py": "570c4621434c4e0bb792b0b72da9508bf2c17e1b797cf6345756f7f1ca614b27"
+      },
+      "canonical_files": {
+        "src/senhance/pipeline/hybrid/method3/__init__.py": "8aac6785e9b30ff0d1389fb4ccfc2faaea624f06363b751cd963f9cfa817bb05",
+        "src/senhance/pipeline/hybrid/method3/alignment.py": "1e10d01b9665c0d5ebdaf6365326060c342d5dbd43930966f495b89794fec0ab",
+        "src/senhance/pipeline/hybrid/method3/band_blender.py": "de309fd205cfecc4e90cb379062272db4d3c7a7ca4b15277857452622a048073",
+        "src/senhance/pipeline/hybrid/method3/bands.py": "1f91074169c6d8e95d6bf82aee223fa37621f6d4f05956308b3b9f745e34a98e",
+        "src/senhance/pipeline/hybrid/method3/blender.py": "05abf598415004f4aa74af77d3d4f46ea612af53752a8f2cf97db42c3cbad55b",
+        "src/senhance/pipeline/hybrid/method3/config.py": "944e56ccec1e826c2a877181660859ead2f021efa4b2f90c7ac8f950e808ca17",
+        "src/senhance/pipeline/hybrid/method3/method3_band_config.py": "7d78c36e6e41ab74f3fb2677b05f648021928ebb6b52e6d2af08943d07c2493f",
+        "src/senhance/pipeline/hybrid/method3/method3_config.py": "a31a4394fd52f8704fba999bc03cfda2d9d3ad12f70e4dccdd3dd304772c301d",
+        "src/senhance/pipeline/hybrid/method3/paired_stft.py": "0812f594d13a9bb5c8eee224c2f664e20e501ac66743dc3cd1a7ea61f6187a25"
+      }
+    }
+  },
+  "compatibility_policy": {
+    "former_imports_are_reexport_only": true,
+    "canonical_and_compatibility_symbols_are_object_identical": true,
+    "compatibility_modules_contain_no_algorithm_implementation": true,
+    "removal_requires_a_separate_reviewed_migration": true
+  },
+  "evidence_policy": {
+    "historical_metric_and_audio_artifacts_rewritten": false,
+    "historical_source_hashes_describe_the_pre_migration_paths": true,
+    "current_source_integrity_uses_this_manifest": true
+  }
+}
