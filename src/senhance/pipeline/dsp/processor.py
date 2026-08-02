@@ -15,6 +15,7 @@ import numpy as np
 from senhance.config.settings import AppSettings
 from senhance.logging_setup.logger import get_logger
 from senhance.pipeline.base import EnhancementStrategy
+from senhance.pipeline.dsp.frame_adapter import DSPFrameAdapter
 from senhance.pipeline.dsp.noise_estimator import NoiseEstimator
 from senhance.pipeline.dsp.spectral_subtraction import spectral_subtract
 from senhance.pipeline.dsp.stft import StreamingSTFT
@@ -46,12 +47,19 @@ class DSPPipeline(EnhancementStrategy):
     values in config/default.yaml were all retuned together against that
     same subset after this fix -- see docs/evaluation_plan.md for the
     before/after numbers and search methodology.
+
+    `process()` takes a complete `frame_size` frame (offline/frame-wise
+    use, e.g. `senhance.evaluation.evaluate.enhance_offline`).
+    `process_block()` takes a `hop_size` live callback block instead,
+    building each analysis frame from the previous + current hop -- see
+    `senhance.pipeline.dsp.live_strategy.DSPBlockStrategy`, the adapter
+    that exposes this pipeline to `AudioStreamManager`'s live loop.
     """
 
     def __init__(self, settings: AppSettings):
         self.settings = settings
-        frame_size = settings.frame_size_samples
-        hop_size = settings.hop_size_samples
+        self.frame_size = frame_size = settings.frame_size_samples
+        self.hop_size = hop_size = settings.hop_size_samples
         num_freq_bins = frame_size // 2 + 1
 
         self._stft = StreamingSTFT(
@@ -71,13 +79,14 @@ class DSPPipeline(EnhancementStrategy):
             smoothing_factor=settings.dsp.wiener_filter.smoothing_factor,
         )
 
-        # Input frames arrive in blocks of `block_size` (from config,
-        # e.g. 480 samples), but the STFT operates on `frame_size` (e.g.
-        # 20ms). This internal buffer accumulates input until a full STFT
-        # frame is available. TODO: if block_size == frame_size exactly
-        # in your config, this is a pass-through; otherwise this handles
-        # the mismatch.
-        self._input_accum = np.zeros(0, dtype=np.float32)
+        # Input arrives as either a complete `frame_size` frame (process(),
+        # offline/frame-wise use) or a `hop_size` live callback block
+        # (process_block(); the adapter builds a full frame from the
+        # previous + current hop). _select_mode() prevents mixing the two
+        # without an intervening reset(), matching
+        # senhance.pipeline.improved_dsp.processor.ImprovedDSPPipeline.
+        self._frame_adapter = DSPFrameAdapter(frame_size, hop_size)
+        self._processing_mode: str | None = None
 
         logger.info(
             "DSPPipeline initialized: frame_size=%d, hop_size=%d, num_freq_bins=%d",
@@ -88,14 +97,34 @@ class DSPPipeline(EnhancementStrategy):
 
     def process(self, frame: np.ndarray) -> np.ndarray:
         """
-        Process one block of audio. See class docstring for the pipeline
-        stages. Returns a block of the same length as the input.
-
-        TODO: this simplified version assumes `frame` is already exactly
-        `frame_size` samples (i.e. block_size == frame_size in config).
-        If you configure a smaller block_size for lower latency, extend
-        this method to accumulate/split via `self._input_accum`.
+        Process one complete STFT analysis frame (`frame_size` samples,
+        e.g. 960) and return one `hop_size`-length enhanced chunk. See
+        class docstring for the pipeline stages. Used for offline/
+        frame-wise processing; see `process_block()` for live callback
+        blocks of `hop_size` samples.
         """
+        self._select_mode("frame")
+        return self._enhance_frame(frame)
+
+    def process_block(self, block: np.ndarray) -> np.ndarray:
+        """
+        Process one live audio-callback block (`hop_size` samples, e.g.
+        480 -- matches `AudioStreamManager`'s `audio.block_size`) and
+        return one equally sized enhanced block.
+
+        `AudioStreamManager` always calls `process()` with `block_size`
+        chunks, never full `frame_size` frames, so this is the entry
+        point a live `EnhancementStrategy` adapter must use (see
+        `senhance.pipeline.dsp.live_strategy.DSPBlockStrategy`). Builds
+        each full analysis frame from the previous + current hop via
+        `DSPFrameAdapter`, so output is delayed by one hop relative to
+        input (the same causal delay `ImprovedDSPPipeline` has).
+        """
+        self._select_mode("block")
+        frame = self._frame_adapter.push(block)
+        return self._enhance_frame(frame)
+
+    def _enhance_frame(self, frame: np.ndarray) -> np.ndarray:
         cfg = self.settings.dsp
 
         spectrum = self._stft.forward(frame)
@@ -121,9 +150,18 @@ class DSPPipeline(EnhancementStrategy):
 
         return self._stft.inverse(enhanced_spectrum)
 
+    def _select_mode(self, requested: str) -> None:
+        if self._processing_mode is None:
+            self._processing_mode = requested
+        elif self._processing_mode != requested:
+            raise RuntimeError(
+                "Cannot mix frame and block processing state; call reset() before switching modes"
+            )
+
     def reset(self) -> None:
         """Reset all stateful sub-components (call between streams)."""
         self._stft.reset()
+        self._frame_adapter.reset()
         self._noise_estimator.reset()
         self._wiener.reset()
-        self._input_accum = np.zeros(0, dtype=np.float32)
+        self._processing_mode = None
