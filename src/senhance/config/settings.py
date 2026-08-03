@@ -26,7 +26,7 @@ import yaml
 class AudioSettings:
     sample_rate: int = 48000
     channels: int = 1
-    block_size: int = 480
+    block_size: int = 1920
     input_device: Optional[str] = None
     output_device: Optional[str] = None
 
