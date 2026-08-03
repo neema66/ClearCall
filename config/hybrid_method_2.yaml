@@ -1,0 +1,18 @@
+# Independent configuration for Hybrid Method 2.
+#
+# Method 2 uses Improved DSP only as a level-reference branch. The final
+# waveform remains the DeepFilterNet3 output multiplied by one bounded gain.
+
+method_2:
+  mode: "dsp_guided_level_calibration"
+  sample_rate: 48000
+
+  level:
+    epsilon: 1.0e-12
+    minimum_gain: 1.0
+    maximum_gain: 1.03
+    silence_rms_threshold: 1.0e-7
+
+  safety:
+    peak_limit: 0.999
+    clipping_threshold: 1.0

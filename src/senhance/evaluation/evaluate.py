@@ -10,6 +10,7 @@ not wired into CI or run automatically. Upgrading to an automated
 Usage:
     python -m senhance.evaluation.evaluate --pipeline dsp
     python -m senhance.evaluation.evaluate --pipeline dl
+    python -m senhance.evaluation.evaluate --pipeline method2
 """
 
 from __future__ import annotations
@@ -34,13 +35,43 @@ from senhance.pipeline.dsp.processor import DSPPipeline
 logger = get_logger(__name__)
 
 
-def _build_pipeline(pipeline_name: str, settings: AppSettings) -> EnhancementStrategy:
+def _build_pipeline(
+    pipeline_name: str,
+    settings: AppSettings,
+    method2_config_path: str = "config/hybrid_method_2.yaml",
+    improved_dsp_config_path: str = "config/improved_dsp.yaml",
+) -> EnhancementStrategy:
     if pipeline_name == "dsp":
         return DSPPipeline(settings)
     elif pipeline_name == "dl":
         from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
 
         return DeepFilterNetPipeline(settings)
+    elif pipeline_name == "method2":
+        from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
+        from senhance.pipeline.hybrid.method2 import (
+            HybridMethod2Pipeline,
+            load_method2_config,
+        )
+        from senhance.pipeline.improved_dsp import (
+            ImprovedDSPPipeline,
+            load_improved_dsp_config,
+        )
+
+        method2_config = load_method2_config(method2_config_path)
+        if settings.audio.sample_rate != method2_config.sample_rate:
+            raise ValueError(
+                "Project and Hybrid Method 2 sample rates differ: "
+                f"project={settings.audio.sample_rate}, method2={method2_config.sample_rate}"
+            )
+        return HybridMethod2Pipeline(
+            method2_config,
+            ImprovedDSPPipeline(
+                settings,
+                load_improved_dsp_config(improved_dsp_config_path),
+            ),
+            DeepFilterNetPipeline(settings),
+        )
     else:
         raise ValueError(f"Unknown pipeline: {pipeline_name}")
 
@@ -68,14 +99,24 @@ def enhance_offline(
     return np.concatenate(output_chunks) if output_chunks else np.zeros(0, dtype=np.float32)
 
 
-def evaluate_dataset(pipeline_name: str, config_path: str = "config/default.yaml") -> None:
+def evaluate_dataset(
+    pipeline_name: str,
+    config_path: str = "config/default.yaml",
+    method2_config_path: str = "config/hybrid_method_2.yaml",
+    improved_dsp_config_path: str = "config/improved_dsp.yaml",
+) -> None:
     """
     Evaluate a pipeline against every clean/noisy pair in the dataset
     directories configured in config/default.yaml, and print a summary
     table of PESQ / STOI / SNR-improvement results.
     """
     settings = load_settings(config_path)
-    pipeline = _build_pipeline(pipeline_name, settings)
+    pipeline = _build_pipeline(
+        pipeline_name,
+        settings,
+        method2_config_path,
+        improved_dsp_config_path,
+    )
 
     clean_dir = Path(settings.evaluation.dataset_dir) / settings.evaluation.clean_subdir
     noisy_dir = Path(settings.evaluation.dataset_dir) / settings.evaluation.noisy_subdir
@@ -100,14 +141,16 @@ def evaluate_dataset(pipeline_name: str, config_path: str = "config/default.yaml
         noisy, sr_noisy = sf.read(noisy_path, dtype="float32")
         assert sr_clean == sr_noisy, "Clean/noisy sample rates must match."
 
-        if pipeline_name == "dl":
-            from senhance.pipeline.dl.deepfilternet_wrapper import DeepFilterNetPipeline
-
-            assert isinstance(pipeline, DeepFilterNetPipeline)
-            enhanced = pipeline.enhance_array(noisy, sr_noisy)
+        if pipeline_name in {"dl", "method2"}:
+            enhance_array = getattr(pipeline, "enhance_array", None)
+            if not callable(enhance_array):
+                raise TypeError(
+                    f"{pipeline_name} pipeline must provide enhance_array(audio, sample_rate)"
+                )
+            enhanced = enhance_array(noisy, sr_noisy)
             if enhanced.shape != noisy.shape:
                 raise AssertionError(
-                    "DeepFilterNet array boundary changed the sample count: "
+                    f"{pipeline_name} array boundary changed the sample count: "
                     f"input={noisy.size}, output={enhanced.size}"
                 )
         else:
@@ -151,15 +194,33 @@ def evaluate_dataset(pipeline_name: str, config_path: str = "config/default.yaml
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate an enhancement pipeline offline.")
     parser.add_argument(
-        "--pipeline", choices=["dsp", "dl"], default="dsp", help="Which pipeline to evaluate."
+        "--pipeline",
+        choices=["dsp", "dl", "method2"],
+        default="dsp",
+        help="Which pipeline to evaluate.",
     )
     parser.add_argument(
         "--config", default="config/default.yaml", help="Path to a config YAML file."
     )
+    parser.add_argument(
+        "--method2-config",
+        default="config/hybrid_method_2.yaml",
+        help="Path to the Hybrid Method 2 config YAML file.",
+    )
+    parser.add_argument(
+        "--improved-dsp-config",
+        default="config/improved_dsp.yaml",
+        help="Path to the Improved DSP config used by Method 2.",
+    )
     args = parser.parse_args()
 
     configure_logging()
-    evaluate_dataset(args.pipeline, args.config)
+    evaluate_dataset(
+        args.pipeline,
+        args.config,
+        args.method2_config,
+        args.improved_dsp_config,
+    )
 
 
 if __name__ == "__main__":

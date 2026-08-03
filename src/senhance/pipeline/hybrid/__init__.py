@@ -1,8 +1,8 @@
-"""Independent Hybrid Method 1 and Method 3 package namespace.
+"""Independent Hybrid Method 1, Method 2, and Method 3 package namespace.
 
-The two implementations live in separate subpackages.  Legacy Method 3
+The implementations live in separate subpackages. Legacy Method 3
 package-level exports remain available through lazy attribute loading so that
-importing Method 1 never imports Method 3 as a side effect.
+importing one method never imports another as a side effect.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
-_SUBPACKAGES = ("method1", "method3")
+_SUBPACKAGES = ("method1", "method2", "method3")
 _LEGACY_METHOD3_EXPORTS = (
     "AlignedPair",
     "DelayEstimate",

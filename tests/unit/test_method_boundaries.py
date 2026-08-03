@@ -1,6 +1,6 @@
 """Repository-level guards for independent enhancement method ownership.
 
-These tests inspect imports without importing optional runtime dependencies.  Each
+These tests inspect imports without importing optional runtime dependencies. Each
 method may import its own package plus the shared pipeline contract,
 configuration, and logging infrastructure; it may not import another method.
 """
@@ -45,6 +45,11 @@ METHODS = (
         PIPELINE_ROOT / "hybrid" / "method1",
     ),
     MethodBoundary(
+        "Hybrid Method 2",
+        "senhance.pipeline.hybrid.method2",
+        PIPELINE_ROOT / "hybrid" / "method2",
+    ),
+    MethodBoundary(
         "Hybrid Method 3",
         "senhance.pipeline.hybrid.method3",
         PIPELINE_ROOT / "hybrid" / "method3",
@@ -87,7 +92,7 @@ def _project_import_is_allowed(module: str, boundary: MethodBoundary) -> bool:
     return any(_matches_package(module, shared) for shared in ALLOWED_SHARED_PROJECT_IMPORTS)
 
 
-def test_all_five_method_implementations_have_distinct_source_directories() -> None:
+def test_all_six_method_implementations_have_distinct_source_directories() -> None:
     assert len({method.package for method in METHODS}) == len(METHODS)
     assert len({method.source.resolve() for method in METHODS}) == len(METHODS)
     assert all(method.source.is_dir() for method in METHODS)
