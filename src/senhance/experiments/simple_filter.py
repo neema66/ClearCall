@@ -55,6 +55,38 @@ class SimpleAudioEngine:
 
         self.noise_db = -20
 
+        # "white", "pink", "brown" (a.k.a. "red"), or "background"
+        # (loops an arbitrary WAV/audio file -- e.g. a coffee shop
+        # ambience recording -- via set_background_file()).
+
+        self.noise_type = "white"
+
+        # Filter state for the pink-noise generator (Paul Kellet's
+        # "economy" pink noise filter, run via scipy.signal.lfilter).
+        # zi=None on first call tells lfilter to start from zeros;
+        # after that it's a list of per-section state arrays so output
+        # stays continuous across process_audio() calls.
+
+        self._pink_zi = None
+
+        self._pink_b6_last = 0.0
+
+        # lfilter state for the brown/red noise generator (leaky
+        # integrator). None on first call = start from zero.
+
+        self._brown_zi = np.zeros(1)
+
+        # Background noise file (coffee shop sounds, etc). Loaded via
+        # set_background_file(); stored mono, resampled to
+        # self.sample_rate, and normalized to unit RMS so it mixes in
+        # at the same noise_db level as the synthetic noise types.
+
+        self.background_audio = None
+
+        self.background_pos = 0
+
+        self.background_file_path = None
+
 
 
         # ----------------------------
@@ -109,6 +141,102 @@ class SimpleAudioEngine:
     def set_noise_level(self, db):
 
         self.noise_db = db
+
+
+
+    def set_noise_type(self, noise_type):
+
+        # "white" / "pink" / "brown" (or "red") / "background"
+
+        if noise_type == "red":
+
+            noise_type = "brown"
+
+        self.noise_type = noise_type
+
+
+
+    def set_background_file(self, path):
+
+        # Loads an arbitrary audio file (coffee shop ambience, cafe
+        # chatter, etc) to be looped and mixed in when
+        # noise_type == "background". Raises on failure so the GUI can
+        # show the error rather than silently keeping the old file.
+
+        audio, sr = self._load_audio_file(path)
+
+        if sr != self.sample_rate:
+
+            from math import gcd
+
+            from scipy.signal import resample_poly
+
+            g = gcd(int(sr), int(self.sample_rate))
+
+            audio = resample_poly(
+                audio,
+                self.sample_rate // g,
+                sr // g,
+            )
+
+        self.background_audio = audio.astype(np.float64)
+
+        self.background_pos = 0
+
+        self.background_file_path = path
+
+
+
+    @staticmethod
+    def _load_audio_file(path):
+
+        # Prefers soundfile (handles wav/flac/ogg/mp3-via-libsndfile);
+        # falls back to scipy's wavfile reader (WAV-only) if soundfile
+        # isn't installed.
+
+        try:
+
+            import soundfile as sf
+
+            data, sr = sf.read(path, always_2d=False)
+
+            data = data.astype(np.float64)
+
+        except ImportError:
+
+            from scipy.io import wavfile
+
+            sr, data = wavfile.read(path)
+
+            if np.issubdtype(data.dtype, np.integer):
+
+                data = data.astype(np.float64) / np.iinfo(data.dtype).max
+
+            else:
+
+                data = data.astype(np.float64)
+
+
+        if data.ndim > 1:
+
+            data = data.mean(axis=1)
+
+
+        # Normalize to unit RMS so any source file mixes in at a
+        # predictable level, controlled entirely by noise_db.
+
+        rms = float(
+            np.sqrt(
+                np.mean(data ** 2)
+            )
+        )
+
+        if rms > 1e-9:
+
+            data = data / rms
+
+
+        return data, sr
 
 
 
@@ -380,14 +508,187 @@ class SimpleAudioEngine:
         )
 
         print(
-            "mic_rms=%.5f  out_rms=%.5f  noise=%s  filter=%s"
+            "mic_rms=%.5f  out_rms=%.5f  noise=%s (%s)  filter=%s"
             % (
                 mic_rms,
                 out_rms,
                 self.add_noise_enabled,
+                self.noise_type,
                 self.filter_type,
             )
         )
+
+
+
+    # ----------------------------
+    # Noise generators
+    # ----------------------------
+
+
+    def _generate_noise(self, n):
+
+        # Target RMS from the dB slider, same convention the old
+        # white-noise-only code used.
+
+        target_rms = 10 ** (
+            self.noise_db / 20
+        )
+
+
+        if self.noise_type == "pink":
+
+            raw = self._pink_noise(n)
+
+        elif self.noise_type == "brown":
+
+            raw = self._brown_noise(n)
+
+        elif self.noise_type == "background":
+
+            raw = self._next_background_block(n)
+
+        else:
+
+            raw = np.random.normal(
+                0,
+                1,
+                n
+            )
+
+
+        current_rms = float(
+            np.sqrt(
+                np.mean(raw ** 2)
+            )
+        )
+
+        if current_rms < 1e-9:
+
+            return np.zeros(n)
+
+
+        return raw * (target_rms / current_rms)
+
+
+
+    def _pink_noise(self, n):
+
+        # Paul Kellet's "economy" pink-noise filter, implemented as a
+        # bank of 1st-order IIR sections run through scipy's lfilter
+        # (vectorized in C) rather than a per-sample Python loop -- the
+        # Python-loop version was cheap on paper but slow enough in
+        # practice to cause audio callback overruns/lag at ~100
+        # calls/sec. zi_bank carries each section's state across
+        # blocks so output stays continuous at block boundaries.
+
+        white = np.random.normal(0, 1, n)
+
+        if self._pink_zi is None:
+
+            self._pink_zi = [
+                np.zeros(1) for _ in range(6)
+            ]
+
+
+        coeffs = (
+            (0.99886, 0.0555179),
+            (0.99332, 0.0750759),
+            (0.96900, 0.1538520),
+            (0.86650, 0.3104856),
+            (0.55000, 0.5329522),
+            (-0.7616, -0.0168980),
+        )
+
+        total = white * 0.5362
+
+        for idx, (pole, gain) in enumerate(coeffs):
+
+            section, self._pink_zi[idx] = lfilter(
+                [gain],
+                [1.0, -pole],
+                white,
+                zi=self._pink_zi[idx],
+            )
+
+            total = total + section
+
+
+        # b6 in the original algorithm is just a one-sample-delayed
+        # copy of the (scaled) white noise -- cheap to do directly.
+
+        b6 = np.empty(n)
+
+        b6[0] = self._pink_b6_last
+
+        b6[1:] = white[:-1] * 0.115926
+
+        self._pink_b6_last = white[-1] * 0.115926
+
+        total = total + b6
+
+
+        return total
+
+
+
+    def _brown_noise(self, n):
+
+        # Brown/red noise: a leaky-integrated random walk, run through
+        # lfilter as a single-pole IIR filter instead of a per-sample
+        # Python loop (same reasoning as _pink_noise above).
+
+        white = np.random.normal(0, 1, n)
+
+        out, self._brown_zi = lfilter(
+            [0.02],
+            [1.0, -0.98],
+            white,
+            zi=self._brown_zi,
+        )
+
+        return out
+
+
+
+    def _next_background_block(self, n):
+
+        if (
+            self.background_audio is None
+            or len(self.background_audio) == 0
+        ):
+
+            return np.zeros(n)
+
+
+        audio = self.background_audio
+
+        pos = self.background_pos
+
+        out = np.empty(n)
+
+        filled = 0
+
+        while filled < n:
+
+            take = min(
+                len(audio) - pos,
+                n - filled
+            )
+
+            out[filled:filled + take] = audio[pos:pos + take]
+
+            pos += take
+
+            filled += take
+
+            if pos >= len(audio):
+
+                pos = 0
+
+
+        self.background_pos = pos
+
+        return out
 
 
 
@@ -409,14 +710,7 @@ class SimpleAudioEngine:
         if self.add_noise_enabled:
 
 
-            rms = 10 ** (
-                self.noise_db / 20
-            )
-
-
-            noise = np.random.normal(
-                0,
-                rms,
+            noise = self._generate_noise(
                 len(audio)
             )
 

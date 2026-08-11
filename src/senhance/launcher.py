@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -302,9 +303,33 @@ class LauncherWindow(QWidget):
         )
 
 
-        self.setLayout(
+        content = QWidget()
+
+        content.setLayout(
             layout
         )
+
+        scroll = QScrollArea()
+
+        scroll.setWidgetResizable(True)
+
+        scroll.setWidget(
+            content
+        )
+
+        outer_layout = QVBoxLayout()
+
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        outer_layout.addWidget(
+            scroll
+        )
+
+        self.setLayout(
+            outer_layout
+        )
+
+        self.resize(520, 800)
 
 
 

@@ -23,11 +23,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QCheckBox,
     QComboBox,
+    QFileDialog,
+    QHBoxLayout,
     QLineEdit,
     QMessageBox,
+    QScrollArea,
 )
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 
 
 from senhance.experiments.simple_filter import SimpleAudioEngine
@@ -70,6 +73,55 @@ class FocusLineEdit(QLineEdit):
 
 
 
+class _BackgroundFileLoader(QThread):
+
+    # Loads/resamples a background noise file off the GUI thread --
+    # reading a long WAV and resample_poly()'ing it to the engine's
+    # sample rate can take a noticeable moment, and doing that on the
+    # main thread froze the whole window until it finished.
+
+    loaded = Signal(str)
+
+    failed = Signal(str, str)
+
+
+    def __init__(self, engine, path):
+
+        super().__init__()
+
+        self.engine = engine
+
+        self.path = path
+
+
+
+    def run(self):
+
+        try:
+
+            self.engine.set_background_file(
+                self.path
+            )
+
+        except Exception as e:
+
+            import traceback
+
+            self.failed.emit(
+                self.path,
+                "%s\n%s" % (e, traceback.format_exc())
+            )
+
+            return
+
+
+        self.loaded.emit(
+            self.path
+        )
+
+
+
+
 class ClearCallGUI(QWidget):
 
     def __init__(
@@ -83,6 +135,8 @@ class ClearCallGUI(QWidget):
 
 
         self.engine = SimpleAudioEngine()
+
+        self._loader_thread = None
 
 
         self._initial_config_path = initial_config_path or ""
@@ -323,6 +377,82 @@ class ClearCallGUI(QWidget):
         )
 
 
+        layout.addWidget(
+            QLabel(
+                "Noise Type"
+            )
+        )
+
+
+        self.noise_type_box = QComboBox()
+
+        self.noise_type_box.addItems(
+            [
+                "White",
+                "Pink",
+                "Brown",
+                "Background Audio File...",
+            ]
+        )
+
+        self.noise_type_box.currentTextChanged.connect(
+            self.noise_type_changed
+        )
+
+        layout.addWidget(
+            self.noise_type_box
+        )
+
+
+        # Only shown/used when "Background Audio File..." is selected.
+        # Point this at any looping ambience recording -- coffee shop
+        # chatter, street noise, office hum, etc -- and it gets mixed
+        # in at the same Noise Level (dB) slider above.
+
+        self.background_label = QLabel(
+            "Background Audio File (looped; e.g. a coffee shop "
+            "ambience recording)"
+        )
+
+        layout.addWidget(
+            self.background_label
+        )
+
+        background_row = QHBoxLayout()
+
+        self.background_path_input = QLineEdit()
+
+        self.background_path_input.setPlaceholderText(
+            "path/to/coffee_shop.wav"
+        )
+
+        background_row.addWidget(
+            self.background_path_input
+        )
+
+        self.background_browse_button = QPushButton(
+            "Browse..."
+        )
+
+        self.background_browse_button.clicked.connect(
+            self.browse_background_file
+        )
+
+        background_row.addWidget(
+            self.background_browse_button
+        )
+
+        layout.addLayout(
+            background_row
+        )
+
+        self.background_label.hide()
+
+        self.background_path_input.hide()
+
+        self.background_browse_button.hide()
+
+
 
         # ----------------------
         # Filter type
@@ -430,9 +560,37 @@ class ClearCallGUI(QWidget):
 
 
 
-        self.setLayout(
+        # Wrap everything in a scroll area so the window is usable
+        # (and all controls reachable) even when it's taller than the
+        # screen -- there are a lot of controls stacked in one column.
+
+        content = QWidget()
+
+        content.setLayout(
             layout
         )
+
+        scroll = QScrollArea()
+
+        scroll.setWidgetResizable(True)
+
+        scroll.setWidget(
+            content
+        )
+
+        outer_layout = QVBoxLayout()
+
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        outer_layout.addWidget(
+            scroll
+        )
+
+        self.setLayout(
+            outer_layout
+        )
+
+        self.resize(520, 800)
 
 
         # Apply any initial values passed in from the launcher window
@@ -715,6 +873,155 @@ class ClearCallGUI(QWidget):
         except ValueError:
 
             pass
+
+
+
+    def noise_type_changed(self, text):
+
+        types = {
+
+            "White": "white",
+
+            "Pink": "pink",
+
+            "Brown": "brown",
+
+            "Background Audio File...": "background",
+
+        }
+
+        noise_type = types.get(
+            text,
+            "white"
+        )
+
+        self.engine.set_noise_type(
+            noise_type
+        )
+
+
+        is_background = (
+            noise_type == "background"
+        )
+
+        self.background_label.setVisible(
+            is_background
+        )
+
+        self.background_path_input.setVisible(
+            is_background
+        )
+
+        self.background_browse_button.setVisible(
+            is_background
+        )
+
+
+        if is_background:
+
+            path = self.background_path_input.text().strip()
+
+            if path:
+
+                self._load_background_file(
+                    path
+                )
+
+
+
+    def browse_background_file(self):
+
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select a background audio file (e.g. coffee shop ambience)",
+            "",
+            "Audio files (*.wav *.flac *.ogg *.aiff *.aif);;All files (*)"
+        )
+
+        if not path:
+
+            return
+
+
+        self.background_path_input.setText(
+            path
+        )
+
+        self._load_background_file(
+            path
+        )
+
+
+
+    def _load_background_file(self, path):
+
+        # Non-blocking: reading + resampling a long file can take a
+        # moment, so it runs on a worker thread instead of freezing
+        # the GUI. Disable the controls until it finishes so a second
+        # load can't be kicked off on top of the first.
+
+        if self._loader_thread is not None and self._loader_thread.isRunning():
+
+            return
+
+
+        self.background_browse_button.setEnabled(False)
+
+        self.background_path_input.setEnabled(False)
+
+        self.background_label.setText(
+            "Background Audio File (loading %r...)" % path
+        )
+
+
+        self._loader_thread = _BackgroundFileLoader(
+            self.engine,
+            path
+        )
+
+        self._loader_thread.loaded.connect(
+            self._background_file_loaded
+        )
+
+        self._loader_thread.failed.connect(
+            self._background_file_failed
+        )
+
+        self._loader_thread.start()
+
+
+
+    def _background_file_loaded(self, path):
+
+        self.background_browse_button.setEnabled(True)
+
+        self.background_path_input.setEnabled(True)
+
+        self.background_label.setText(
+            "Background Audio File (looped; e.g. a coffee shop "
+            "ambience recording)"
+        )
+
+
+
+    def _background_file_failed(self, path, error_text):
+
+        self.background_browse_button.setEnabled(True)
+
+        self.background_path_input.setEnabled(True)
+
+        self.background_label.setText(
+            "Background Audio File (looped; e.g. a coffee shop "
+            "ambience recording)"
+        )
+
+        QMessageBox.critical(
+            self,
+            "Failed to load background audio",
+            "Could not load %r as background noise:\n%s\n\n"
+            "(Non-WAV formats like mp3/ogg need the 'soundfile' "
+            "package installed.)" % (path, error_text)
+        )
 
 
 
